@@ -7,6 +7,46 @@
 
 ## Architecture Overview
 
+┌────────────────────┐
+        │   CSV Market Data  │
+        │ (Prices, Volume)  │
+        └─────────┬──────────┘
+                  ↓
+        ┌────────────────────┐
+        │  Data Processing   │
+        │ (Cleaning + Features)
+        └─────────┬──────────┘
+                  ↓
+        ┌─────────git───────────┐
+        │   Trading Strategy │
+        │ (Buy/Sell Signals) │
+        └─────────┬──────────┘
+                  ↓
+        ┌────────────────────┐
+        │   Risk Management  │
+        │ (Position Size, SL)│
+        └─────────┬──────────┘
+                  ↓
+        ┌────────────────────┐
+        │   Backtesting      │
+        │ (Simulate Trades)  │
+        └─────────┬──────────┘
+                  ↓
+        ┌────────────────────┐
+        │   Metrics Engine   │
+        │ (Sharpe, Drawdown) │
+        └─────────┬──────────┘
+                  ↓
+        ┌────────────────────┐
+        │   Backend API      │
+        │ (FastAPI)          │
+        └─────────┬──────────┘
+                  ↓
+        ┌────────────────────┐
+        │   Frontend UI      │
+        │ (Dashboard/Charts) │
+        └────────────────────┘
+
 #### Our approach combines a modern React frontend with a FastAPI backend to deliver a comprehensive hedge fund risk modeling and trading system.
 
     - **Data Ingestion**: The system ingests multiple CSV datasets (equity, macro, multi-asset, oil) through a robust data pipeline that handles missing values, outliers, and date conversions. The DataLoader service preprocesses all data before feature engineering.
