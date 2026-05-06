@@ -45,7 +45,7 @@ class DataLoader:
         return self.datasets.get(name)
     
     def preprocess_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Basic preprocessing: handle missing values and convert dates."""
+        """Advanced preprocessing: handle missing values, convert dates, and clean data."""
         df = df.copy()
         
         # Try to identify date columns and convert them
@@ -56,8 +56,18 @@ class DataLoader:
                 except:
                     pass
         
-        # Handle missing values
+        # Handle missing values with forward fill then backward fill
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         df[numeric_cols] = df[numeric_cols].fillna(method='ffill').fillna(method='bfill')
+        
+        # Remove outliers using IQR method for price/volume columns
+        for col in ['Price', 'Volume', 'Oil', 'Gold', 'Bonds']:
+            if col in df.columns:
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                df[col] = df[col].clip(lower_bound, upper_bound)
         
         return df

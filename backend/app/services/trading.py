@@ -17,7 +17,7 @@ class TradingEngine:
         self.trade_log = []
     
     def generate_signals(self, df: pd.DataFrame) -> List[Dict]:
-        """Generate trading signals based on technical indicators."""
+        """Generate trading signals using multi-asset data and advanced indicators."""
         signals = []
         
         if len(df) < 20:
@@ -26,14 +26,17 @@ class TradingEngine:
         latest = df.iloc[-1]
         prev = df.iloc[-2]
         
-        # Rule 1: Momentum-based signal
+        # Determine asset type for specialized signals
+        asset_type = self._determine_asset_type(df)
+        
+        # Rule 1: Enhanced Momentum-based signal
         if 'momentum_5' in df.columns:
             if latest['momentum_5'] > 0.02 and prev['momentum_5'] <= 0.02:
                 signals.append({
                     'asset': df.iloc[0].get('asset', 'UNKNOWN'),
                     'signal': 'BUY',
                     'confidence': 0.7,
-                    'rationale': '5-day momentum turned positive (>2%)',
+                    'rationale': f'5-day momentum turned positive (>2%) for {asset_type}',
                     'timestamp': datetime.now()
                 })
             elif latest['momentum_5'] < -0.02 and prev['momentum_5'] >= -0.02:
@@ -41,37 +44,89 @@ class TradingEngine:
                     'asset': df.iloc[0].get('asset', 'UNKNOWN'),
                     'signal': 'SELL',
                     'confidence': 0.7,
-                    'rationale': '5-day momentum turned negative (<-2%)',
+                    'rationale': f'5-day momentum turned negative (<-2%) for {asset_type}',
                     'timestamp': datetime.now()
                 })
         
-        # Rule 2: RSI-based signal
+        # Rule 2: RSI-based signal with asset-specific thresholds
         if 'rsi' in df.columns:
-            if latest['rsi'] < 30 and prev['rsi'] >= 30:
+            rsi_threshold = 25 if asset_type == 'commodity' else 30
+            if latest['rsi'] < rsi_threshold and prev['rsi'] >= rsi_threshold:
                 signals.append({
                     'asset': df.iloc[0].get('asset', 'UNKNOWN'),
                     'signal': 'BUY',
                     'confidence': 0.6,
-                    'rationale': 'RSI oversold (<30)',
+                    'rationale': f'RSI oversold (<{rsi_threshold}) for {asset_type}',
                     'timestamp': datetime.now()
                 })
-            elif latest['rsi'] > 70 and prev['rsi'] <= 70:
+            elif latest['rsi'] > 75 and prev['rsi'] <= 75:
                 signals.append({
                     'asset': df.iloc[0].get('asset', 'UNKNOWN'),
                     'signal': 'SELL',
                     'confidence': 0.6,
-                    'rationale': 'RSI overbought (>70)',
+                    'rationale': f'RSI overbought (>75) for {asset_type}',
                     'timestamp': datetime.now()
                 })
         
-        # Rule 3: Volatility-based signal
-        if 'volatility' in df.columns:
-            if latest['volatility'] < self.risk_tolerance:
+        # Rule 3: Multi-asset correlation signals
+        if 'oil_gold_ratio' in df.columns:
+            ratio_ma = df['oil_gold_ratio'].rolling(window=20).mean().iloc[-1]
+            if latest['oil_gold_ratio'] > ratio_ma * 1.1:
+                signals.append({
+                    'asset': 'Oil',
+                    'signal': 'BUY',
+                    'confidence': 0.6,
+                    'rationale': 'Oil outperforming gold relative to historical average',
+                    'timestamp': datetime.now()
+                })
+            elif latest['oil_gold_ratio'] < ratio_ma * 0.9:
+                signals.append({
+                    'asset': 'Gold',
+                    'signal': 'BUY',
+                    'confidence': 0.6,
+                    'rationale': 'Gold outperforming oil relative to historical average',
+                    'timestamp': datetime.now()
+                })
+        
+        # Rule 4: Macro-economic signals
+        if 'inflation_trend' in df.columns and 'interest_rate_trend' in df.columns:
+            if latest['inflation_trend'] > 0 and latest['interest_rate_trend'] < 0:
+                signals.append({
+                    'asset': 'Bonds',
+                    'signal': 'BUY',
+                    'confidence': 0.5,
+                    'rationale': 'Rising inflation with falling rates - bond opportunity',
+                    'timestamp': datetime.now()
+                })
+        
+        # Rule 5: Sentiment-based signals
+        if 'sentiment_ma' in df.columns:
+            if latest['sentiment_ma'] > 0.5 and prev['sentiment_ma'] <= 0.5:
                 signals.append({
                     'asset': df.iloc[0].get('asset', 'UNKNOWN'),
                     'signal': 'BUY',
                     'confidence': 0.5,
-                    'rationale': f'Low volatility ({latest["volatility"]:.2%} < {self.risk_tolerance:.2%})',
+                    'rationale': 'Positive sentiment trend detected',
+                    'timestamp': datetime.now()
+                })
+            elif latest['sentiment_ma'] < -0.5 and prev['sentiment_ma'] >= -0.5:
+                signals.append({
+                    'asset': df.iloc[0].get('asset', 'UNKNOWN'),
+                    'signal': 'SELL',
+                    'confidence': 0.5,
+                    'rationale': 'Negative sentiment trend detected',
+                    'timestamp': datetime.now()
+                })
+        
+        # Rule 6: Volatility-based signal with asset-specific thresholds
+        if 'volatility' in df.columns:
+            vol_threshold = self.risk_tolerance * (0.8 if asset_type == 'commodity' else 1.0)
+            if latest['volatility'] < vol_threshold:
+                signals.append({
+                    'asset': df.iloc[0].get('asset', 'UNKNOWN'),
+                    'signal': 'BUY',
+                    'confidence': 0.5,
+                    'rationale': f'Low volatility ({latest["volatility"]:.2%} < {vol_threshold:.2%}) for {asset_type}',
                     'timestamp': datetime.now()
                 })
         
@@ -81,11 +136,22 @@ class TradingEngine:
                 'asset': df.iloc[0].get('asset', 'UNKNOWN'),
                 'signal': 'HOLD',
                 'confidence': 0.5,
-                'rationale': 'No strong buy/sell signals',
+                'rationale': f'No strong signals for {asset_type}',
                 'timestamp': datetime.now()
             })
         
         return signals
+    
+    def _determine_asset_type(self, df: pd.DataFrame) -> str:
+        """Determine asset type based on available columns."""
+        if 'Oil' in df.columns and 'Gold' in df.columns:
+            return 'multi-asset'
+        elif 'Inflation' in df.columns:
+            return 'macro'
+        elif 'Volatility' in df.columns and df['Volatility'].std() > 0.1:
+            return 'commodity'
+        else:
+            return 'equity'
     
     def calculate_position_size(self, signal: Dict, portfolio_value: float, 
                                 asset_volatility: float, max_position_size: float) -> float:

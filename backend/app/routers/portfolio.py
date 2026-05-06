@@ -52,7 +52,7 @@ async def get_portfolio_performance():
 
 @router.get("/allocation")
 async def get_portfolio_allocation():
-    """Get current portfolio allocation."""
+    """Get current portfolio allocation across all asset classes."""
     global portfolio_manager
     
     if portfolio_manager is None:
@@ -60,11 +60,50 @@ async def get_portfolio_allocation():
     
     allocation = portfolio_manager.get_allocation()
     
-    return [
-        {"name": asset, "value": percentage * portfolio_manager.total_value}
-        for asset, percentage in allocation.items()
-        if percentage > 0
+    # Enhanced allocation with asset class categorization
+    detailed_allocation = []
+    for asset, percentage in allocation.items():
+        if percentage > 0:
+            asset_class = "Unknown"
+            if asset.lower() in ['equity', 'stocks', 'aapl', 'msft', 'googl']:
+                asset_class = "Equities"
+            elif asset.lower() in ['bonds', 'treasury']:
+                asset_class = "Fixed Income"
+            elif asset.lower() in ['oil', 'gold', 'commodities']:
+                asset_class = "Commodities"
+            elif asset == 'cash':
+                asset_class = "Cash"
+            
+            detailed_allocation.append({
+                "name": f"{asset} ({asset_class})",
+                "value": percentage * portfolio_manager.total_value,
+                "percentage": percentage,
+                "asset_class": asset_class
+            })
+    
+    # Add target allocation for comparison
+    target_allocation = [
+        {"name": "Equities (Target)", "value": 0.4 * portfolio_manager.total_value, "percentage": 0.4, "asset_class": "Equities"},
+        {"name": "Bonds (Target)", "value": 0.3 * portfolio_manager.total_value, "percentage": 0.3, "asset_class": "Fixed Income"},
+        {"name": "Commodities (Target)", "value": 0.2 * portfolio_manager.total_value, "percentage": 0.2, "asset_class": "Commodities"},
+        {"name": "Cash (Target)", "value": 0.1 * portfolio_manager.total_value, "percentage": 0.1, "asset_class": "Cash"},
     ]
+    
+    return {
+        "current_allocation": detailed_allocation,
+        "target_allocation": target_allocation,
+        "allocation_drift": self._calculate_allocation_drift(detailed_allocation, target_allocation)
+    }
+
+def _calculate_allocation_drift(current_allocation, target_allocation):
+    """Calculate drift from target allocation."""
+    drift = 0.0
+    for current in current_allocation:
+        asset_class = current.get('asset_class')
+        target_pct = next((t['percentage'] for t in target_allocation if t['asset_class'] == asset_class), 0)
+        drift += abs(current['percentage'] - target_pct)
+    
+    return drift / len(target_allocation) if target_allocation else 0
 
 
 @router.post("/constraints")

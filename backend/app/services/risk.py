@@ -94,11 +94,12 @@ class RiskManager:
         return alpha
     
     def calculate_all_metrics(self, portfolio_values: pd.Series, market_values: pd.Series = None) -> Dict:
-        """Calculate all risk metrics."""
+        """Calculate advanced risk metrics using multi-asset data."""
         returns = portfolio_values.pct_change().dropna()
         
         metrics = {
             'var': self.calculate_var(returns, 0.95),
+            'var_99': self.calculate_var(returns, 0.99),
             'var_confidence': 0.95,
             'max_drawdown': self.calculate_max_drawdown(portfolio_values),
             'current_drawdown': self.calculate_max_drawdown(portfolio_values.tail(30)),
@@ -106,7 +107,12 @@ class RiskManager:
             'sharpe_ratio': self.calculate_sharpe_ratio(returns),
             'sortino_ratio': self.calculate_sortino_ratio(returns),
             'beta': 1.0,
-            'alpha': 0.0
+            'alpha': 0.0,
+            'tracking_error': 0.0,
+            'information_ratio': 0.0,
+            'calmar_ratio': 0.0,
+            'var_95_history': [],
+            'var_99_history': []
         }
         
         if market_values is not None:
@@ -115,5 +121,19 @@ class RiskManager:
                 min_len = min(len(returns), len(market_returns))
                 metrics['beta'] = self.calculate_beta(returns.tail(min_len), market_returns.tail(min_len))
                 metrics['alpha'] = self.calculate_alpha(returns.tail(min_len), market_returns.tail(min_len))
+                
+                # Additional advanced metrics
+                excess_returns = returns.tail(min_len) - market_returns.tail(min_len)
+                metrics['tracking_error'] = excess_returns.std()
+                metrics['information_ratio'] = excess_returns.mean() / excess_returns.std() if excess_returns.std() != 0 else 0
+                metrics['calmar_ratio'] = returns.tail(min_len).mean() * 252 / abs(metrics['max_drawdown']) if metrics['max_drawdown'] != 0 else 0
+        
+        # Calculate VaR history for stress testing
+        for window in [30, 60, 90]:
+            if len(returns) >= window:
+                window_var_95 = self.calculate_var(returns.tail(window), 0.95)
+                window_var_99 = self.calculate_var(returns.tail(window), 0.99)
+                metrics['var_95_history'].append(window_var_95)
+                metrics['var_99_history'].append(window_var_99)
         
         return metrics

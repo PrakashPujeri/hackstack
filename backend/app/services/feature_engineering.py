@@ -61,12 +61,46 @@ class FeatureEngineering:
         return df
     
     def engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Apply all feature engineering steps."""
+        """Apply all feature engineering steps for multi-asset datasets."""
         logger.info("Engineering features...")
         df = self.calculate_returns(df)
         df = self.calculate_volatility(df)
         df = self.calculate_momentum(df)
         df = self.calculate_rsi(df)
         df = self.calculate_bollinger_bands(df)
+        
+        # Add dataset-specific features
+        df = self.add_dataset_specific_features(df)
+        
         logger.info(f"Feature engineering complete. Features: {df.shape[1]}")
+        return df
+    
+    def add_dataset_specific_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Add features specific to different dataset types."""
+        # Macro economic features
+        if 'Inflation' in df.columns and 'Interest_Rate' in df.columns:
+            df['real_interest_rate'] = df['Interest_Rate'] - df['Inflation']
+            df['inflation_trend'] = df['Inflation'].pct_change()
+            df['interest_rate_trend'] = df['Interest_Rate'].pct_change()
+        
+        # Multi-asset correlation features
+        if 'Oil' in df.columns and 'Gold' in df.columns:
+            df['oil_gold_ratio'] = df['Oil'] / df['Gold']
+            df['oil_gold_spread'] = df['Oil'] - df['Gold']
+        
+        # Commodity-specific features
+        if 'Volatility' in df.columns:
+            df['volatility_ma'] = df['Volatility'].rolling(window=10).mean()
+            df['volatility_trend'] = df['Volatility'].pct_change()
+        
+        # Sentiment-based features
+        if 'Sentiment' in df.columns:
+            df['sentiment_ma'] = df['Sentiment'].rolling(window=5).mean()
+            df['sentiment_change'] = df['Sentiment'].diff()
+        
+        # USD Index features
+        if 'USD_Index' in df.columns:
+            df['usd_index_momentum'] = df['USD_Index'].pct_change(5)
+            df['usd_index_trend'] = df['USD_Index'].rolling(window=20).mean()
+        
         return df
